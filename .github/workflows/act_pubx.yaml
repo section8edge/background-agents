@@ -1,4 +1,4 @@
-# act-pubx-workflow: v5 variant=plain sha256=77c5fb1081c2e7df
+# act-pubx-workflow: v5 variant=plain sha256=8f1f0e9415f3fb25
 name: act-pubx session runner
 
 on:
@@ -201,7 +201,6 @@ jobs:
           B="$A/oci-store"
           t0=$(date +%s)
           done_rc() {
-            echo "$1" > "$A/grp_restore_done"
             case "$1" in
               0) echo "✓ 组存储已就位: /tmp/storage (用时 $(( $(date +%s) - t0 ))s)"
                  : > "$A/grp_restore_ok" ;;
@@ -210,6 +209,7 @@ jobs:
               5) echo "::error::后台恢复: 工具取不到 → 本次从空开始, 并且**跳过收工推送**" ;;
               *) echo "::error::后台恢复失败 (rc=$1, 用时 $(( $(date +%s) - t0 ))s) → 会话从空/半份目录开始, **收工不推送**(否则会把别人的快照覆盖成空); 本次改动不会被保存" ;;
             esac
+            echo "$1" > "$A/grp_restore_done"
           }
           mkdir -p /tmp/storage
           "$B" restore /tmp --tag "$GRP" >> "$L" 2>&1
@@ -272,8 +272,11 @@ jobs:
             fi
             chmod +x "$B"
           fi
-          "$B" backup "$D" --tag "$GRP" -R gh >> "$L" 2>&1
+          PF=""
+          if [ ! -f "$A/grp_pushed_once" ]; then PF="--pull-first"; fi
+          "$B" backup "$D" --tag "$GRP" -R gh $PF >> "$L" 2>&1
           rc=$?
+          case "$rc" in 0|3) : > "$A/grp_pushed_once" ;; esac
           case "$rc" in
             0) echo "✓ 组存储[$LBL]: 已推送" ;;
             3) echo "::warning::组存储[$LBL]: 部分已传、快照未提交(rc=3) —— 可安全重跑, 已传的块会跳过" ;;
